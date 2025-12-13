@@ -1,0 +1,11 @@
+{
+  "whale_threshold": 50000,
+  "polling_interval_seconds": 60,
+  "network_check_interval_seconds": 10,
+  "max_retries": 5,
+  "retry_backoff_multiplier": 2,
+  "initial_retry_delay_seconds": 2,
+  "log_level": "INFO",
+  "notification_cooldown_minutes": 60,
+  "polymarket_api_base_url": "https://clob.polymarket.com"
+}
