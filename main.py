@@ -7,16 +7,22 @@ automatic retry logic, and network connectivity monitoring.
 """
 import json
 import logging
+import os
 import signal
 import sys
 import time
 from pathlib import Path
 from typing import Optional
 
+from dotenv import load_dotenv
+
 from logger_config import setup_logging
 from network_monitor import NetworkMonitor
-from polymarket_client import PolymarketClient, PolymarketAPIError
-from whale_detector import WhaleDetector
+from polymarket_client_simple import PolymarketClient, PolymarketAPIError
+from volume_whale_detector import VolumeWhaleDetector
+
+# Load environment variables from .env file
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -39,15 +45,17 @@ class WhaleTracker:
 
         # Initialize components
         self.network_monitor = NetworkMonitor()
+
+        # No authentication required for gamma API
         self.polymarket_client = PolymarketClient(
-            base_url=self.config.get('polymarket_api_base_url', 'https://clob.polymarket.com'),
             max_retries=self.config.get('max_retries', 5),
             initial_retry_delay=self.config.get('initial_retry_delay_seconds', 2),
             backoff_multiplier=self.config.get('retry_backoff_multiplier', 2.0)
         )
-        self.whale_detector = WhaleDetector(
-            threshold=self.config.get('whale_threshold', 50000),
-            cooldown_minutes=self.config.get('notification_cooldown_minutes', 60)
+
+        # Use volume-based whale detection (monitors volume spikes)
+        self.whale_detector = VolumeWhaleDetector(
+            volume_spike_threshold=self.config.get('whale_threshold', 50000)
         )
 
         # Setup signal handlers for graceful shutdown
@@ -87,8 +95,8 @@ class WhaleTracker:
         logger.info(f"\nReceived signal {signum}, shutting down gracefully...")
         self.running = False
 
-    def _poll_trades(self) -> None:
-        """Poll for new trades and detect whales."""
+    def _poll_markets(self) -> None:
+        """Poll for markets and detect whale volume spikes."""
         try:
             # Check network connectivity first
             if not self.network_monitor.check_connectivity():
@@ -96,22 +104,22 @@ class WhaleTracker:
                     self.config.get('network_check_interval_seconds', 10)
                 )
 
-            # Fetch recent trades
-            logger.debug("Fetching recent trades...")
-            trades = self.polymarket_client.get_trades(limit=200)
+            # Fetch active markets
+            logger.debug("Fetching active markets...")
+            markets = self.polymarket_client.get_markets(limit=500, active=True)
 
-            if not trades:
-                logger.debug("No trades returned from API")
+            if not markets:
+                logger.debug("No markets returned from API")
                 return
 
-            logger.debug(f"Fetched {len(trades)} trades")
+            logger.debug(f"Fetched {len(markets)} markets")
 
-            # Detect whales
-            whale_trades = self.whale_detector.process_trades(trades)
+            # Detect whale volume spikes
+            whale_markets = self.whale_detector.process_markets(markets)
 
-            # Alert on new whales
-            for whale_trade in whale_trades:
-                alert_message = self.whale_detector.format_whale_alert(whale_trade)
+            # Alert on new whale activity
+            for whale_market in whale_markets:
+                alert_message = self.whale_detector.format_whale_alert(whale_market)
                 logger.warning(f"\n{alert_message}")
 
                 # Here you could add additional notification methods:
@@ -121,11 +129,11 @@ class WhaleTracker:
                 # - Write to database
                 # - etc.
 
-            if whale_trades:
+            if whale_markets:
                 stats = self.whale_detector.get_statistics()
                 logger.info(
-                    f"Stats: {stats['total_trades_seen']} total trades seen, "
-                    f"{stats['unique_whale_traders']} unique whale traders"
+                    f"Stats: {stats['markets_tracked']} markets tracked, "
+                    f"{stats['total_spikes_detected']} whale spikes detected"
                 )
 
         except PolymarketAPIError as e:
@@ -153,8 +161,8 @@ class WhaleTracker:
                         self.config.get('network_check_interval_seconds', 10)
                     )
 
-                # Poll for trades
-                self._poll_trades()
+                # Poll for markets
+                self._poll_markets()
 
                 # Reset error count on successful poll
                 error_count = 0
@@ -200,9 +208,10 @@ class WhaleTracker:
         stats = self.whale_detector.get_statistics()
         logger.info("=" * 80)
         logger.info("Final Statistics:")
-        logger.info(f"  Total trades seen: {stats['total_trades_seen']}")
-        logger.info(f"  Unique whale traders: {stats['unique_whale_traders']}")
-        logger.info(f"  Whale threshold: ${stats['threshold_usd']:,}")
+        logger.info(f"  Total markets seen: {stats['total_markets_seen']}")
+        logger.info(f"  Markets tracked: {stats['markets_tracked']}")
+        logger.info(f"  Whale spikes detected: {stats['total_spikes_detected']}")
+        logger.info(f"  Volume spike threshold: ${stats['threshold_usd']:,}")
         logger.info("=" * 80)
         logger.info("Goodbye! 👋")
 

@@ -1,18 +1,17 @@
 # 🐋 Polymarket Whale Tracker
 
-A robust, production-ready application for tracking large bets (whales) on Polymarket. This tracker automatically monitors all Polymarket trades and alerts you when someone places a bet of $50,000 or more.
+A robust, production-ready application for tracking large bets (whales) on Polymarket. This tracker automatically monitors Polymarket market volumes and alerts you when there's a volume spike of $50,000 or more, indicating whale activity.
 
 ## ✨ Features
 
-- **Automatic Polling**: Continuously monitors Polymarket for new trades
-- **Whale Detection**: Identifies bets of $50K+ (configurable threshold)
+- **Automatic Polling**: Continuously monitors Polymarket market volumes
+- **Volume Spike Detection**: Identifies volume increases of $50K+ (configurable threshold)
 - **Network Resilience**: Automatically pauses when offline and resumes when connectivity is restored
 - **Robust Error Handling**: Retry logic with exponential backoff for all API calls
-- **Smart Deduplication**: Tracks seen trades to avoid duplicate alerts
-- **Cooldown System**: Prevents alert spam from the same trader
-- **Persistent State**: Maintains state across restarts
+- **Smart Deduplication**: Tracks markets to avoid duplicate alerts
+- **Persistent State**: Maintains volume history across restarts
 - **Comprehensive Logging**: Color-coded console output and detailed file logs
-- **Zero Dependencies on External Services**: Works completely standalone
+- **No Authentication Required**: Uses Polymarket's public gamma API
 
 ## 🚀 Quick Start
 
